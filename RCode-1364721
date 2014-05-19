@@ -1,0 +1,169 @@
+Sarunkorn Chotvijit (1364721) - MSc Data Analytics, Computer Science
+-------------------------------------------------------------------------------
+#Rueters dataset installation
+-------------------------------------------------------------------------------
+install.packages("tm")
+install.packages("/Users/moboro/Desktop/Work/UofWarwick/CS909 Data Mining/LabFinal/tm.corpus.Reuters21578/", 
+                 repos = NULL, type="source")
+install.packages("RWeka")
+
+require(tm)
+require(tm.corpus.Reuters21578)
+require(RWeka)
+
+data(Reuters21578)
+rt <- Reuters21578
+
+-------------------------------------------------------------------------------
+#EX1: Data preprocessing
+-------------------------------------------------------------------------------
+#Build document-term matrix
+tdm <- TermDocumentMatrix(rt, control = list(tolower = TRUE, removePunctuation = TRUE, removeNumbers=TRUE, 
+                                             stemDocument = TRUE, stopwords = TRUE, tokenize = scan_tokenizer))
+
+-------------------------------------------------------------------------------
+#EX2: Feature representation of douments and news articles
+-------------------------------------------------------------------------------
+#Feature representations of document or news articles
+install.packages("wordcloud")
+require(wordcloud)
+install.packages("RColorBrewer")
+require(RColorBrewer)
+
+#Wordcloud Visualization
+m <- as.matrix(tdm)
+#Calculate the frequency of words
+v <- sort(rowSums(m), decreasing=TRUE)
+d <- data.frame(word=names(v), freq=v)
+wordcloud(d$word, d$freq, min.freq=2000, colors=brewer.pal(8, "Dark2"))
+
+#Topic Models
+install.packages("topicmodels")
+install.packages("RTextTools")
+install.packages("SnowballC")
+require(topicmodels)
+require(RTextTools)
+require(SnowballC)
+require(tm)
+
+#LDA and CTM
+tdm_temp <- removeSparseTerms(tdm, 0.99)
+dtm <- as.DocumentTermMatrix(tdm_temp, control = list(weightTfIdf))
+rowTotals <- apply(dtm , 1, sum) #Find the sum of words in each Document
+dtm <- dtm[rowTotals > 0,]  
+lda <- LDA(dtm, control = list(alpha = 0.1), k=5) #Apply LDA feature over the data
+get_topics(lda)
+ctm <- CTM(dtm[1:50,], k=5) #Apply CTM feature over the data
+get_topics(ctm)
+
+-------------------------------------------------------------------------------
+#EX3: Classification
+------------------------------------------------------------------------------- 
+install.packages("dismo")
+install.packages("RTextTools")
+install.packages("e1071")
+require(dismo)
+require(RTextTools)
+require(e1071)
+
+targetTopics <-c("acq","earn","money-fx","grain","crude","trade","interest","ship")
+
+#Divide the dataset to training and test set from 10-fold cross validation
+fold <- kfold(meta(rt), k = 10)
+
+#Get the training set from the LEWISSPLIT attributes
+trainSet <- sFilter(rt,"LEWISSPLIT == 'TRAIN'")
+
+#Append the column of either true or false in order to use for further classification model
+addClass <- function(trainSet,rt) {
+  temp <- c()
+  i <- 1
+  for(i in 1:length(rt)){
+    if (trainSet[[i]] == TRUE) 
+      temp <- append(temp,TRUE)
+    else
+      temp <- append(temp,FALSE)
+    i <- i + 1
+  }
+  return(temp)
+}
+
+a <- addClass(trainSet,rt)
+
+t_temp = c()
+
+#use sFilter function to focus on the most important target 
+#topics and filter the meta data by user-defined statements
+t_vect <- sFilter(rt,"Topics == 'acq'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+t_vect <- sFilter(rt,"Topics == 'earn'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+t_vect <- sFilter(rt,"Topics == 'money-fx'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+t_vect <- sFilter(rt,"Topics == 'grain'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+t_vect <- sFilter(rt,"Topics == 'crude'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+t_vect <- sFilter(rt,"Topics == 'trade'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+t_vect <- sFilter(rt,"Topics == 'interest'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+t_vect <- sFilter(rt,"Topics == 'ship'")
+t_temp1 <- addClass(t_vect,rt)
+t_temp <- rbind(t_temp,t_temp1)
+
+#Attach the rownames base on the obtained targetTopics
+rownames(t_temp) <- targetTopics
+t_temp <- as.data.frame(t_temp)
+
+#Apply the svm model onto those sets in order to split the data in to eac hside of the plane or line
+model <- svm(Topics~.,data=t_temp)
+
+#Predicts values based upon a model trained by svm
+
+#Calculate the accuracy, precision, and recall from the predicted values
+
+#Compare the quality of measures
+
+#Compute the micro averaged and macro averaged measures
+
+-------------------------------------------------------------------------------
+#EX4: Clustering
+-------------------------------------------------------------------------------
+install.packages("cluster")
+require(cluster)
+install.packages("fpc")
+require(fpc)
+
+#remove the sparse term in order to reduce the size of the dataset
+ST <- removeSparseTerms(tdm,0.99)
+dtm <- as.DocumentTermMatrix(ST, weightTfIdf)
+
+#K-means clustering
+results <- kmeans(dtm, 10)
+
+#HA Clustering
+d <- dist(dtm[1:100,], method = "euclidean") # distance matrix
+fit <- hclust(d, method="ward") 
+agnesFunc <- agnes(d)
+groups <- cutree(fit, k=5) # cut tree into 5 clusters
+plot(fit) # display dendogram
+# draw dendogram with red borders around the 5 clusters 
+rect.hclust(fit, k=5, border="red")
+
+#DBSCAN
+dbsc <- dbscan(dtm[1:300,],5,showplot = 2)
